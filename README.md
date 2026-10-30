@@ -1,87 +1,41 @@
-[comment]: <> (Todo: Make Light Mode Image)
-[comment]: <> (Todo: Make Dark Mode Image)
+# 2Ship Android (arm64): controles táctiles configurables
 
-# 2 Ship 2 Harkinian
+Estado: escrito leyendo tus repos, **NO compilado**. Pásame los errores del compilador y los voy corrigiendo.
 
-## Discord
+## Qué hay en este paquete
 
-Official Discord: https://discord.com/invite/sxrPyuh697
+| Archivo | Para qué |
+|---|---|
+| `Android/app/src/main/java/com/dishii/mm/ControlsConfig.java` | Posición, tamaño, opacidad y colores de cada botón, más ajustes globales (se guardan en JSON) |
+| `.../TouchControlsView.java` | Dibuja los controles (opacos y con borde) y manda los toques al juego. Multitoque y modo edición (arrastrar) |
+| `.../ControlsSettings.java` | Menú dentro de la app: tamaño global, opacidad, borde, cámara; por botón: tamaño, opacidad, X/Y y 4 colores |
+| `.../MainActivity.java` | El de Waterdish con el overlay XML reemplazado. Conserva los métodos nativos y `Enable/DisableTouchArea` |
+| `Android/app/build.gradle` | Solo `arm64-v8a`, versión 2.0.0-anchor |
+| `Android/app/src/main/AndroidManifest.xml` | Igual que el original, más permiso INTERNET (para Anchor) |
+| `.github/workflows/android.yml` | CI: genera `2ship.o2r` y compila el APK en GitHub Actions |
+| `ANCHOR_PROTOCOL.md` | Protocolo del servidor Anchor, leído de su código |
 
-If you're having any trouble after reading through this `README`, feel free ask for help in the 2 Ship 2 Harkinian Support text channels. Please keep in mind that we do not condone piracy.
+## Cómo aplicarlo
 
-# Quick Start
+1. Copia estas carpetas encima de tu repo, en las mismas rutas. Sobrescribe `MainActivity.java`, `build.gradle` y `AndroidManifest.xml`.
+2. Ya no se usan `res/layout/touchcontrol_overlay.xml` ni los drawables `ic_*`. Puedes borrarlos o dejarlos.
+3. Sube a GitHub y ejecuta *Actions > android-arm64 > Run workflow*.
 
-2Ship does not include any copyrighted assets.  You are required to provide a supported copy of the game.
+## Cómo se usa en el teléfono
 
-### 1. Verify your ROM dump
-You can verify you have dumped a supported copy of the game by using the compatibility checker at https://2ship.equipment/. If you'd prefer to manually validate your ROM dump, you can cross-reference its `sha1` hash with the hashes [here](docs/supportedHashes.json).
+- Botón `☰` (arriba al centro): abre el menú de controles.
+- `◉`: oculta o muestra todos los controles.
+- Menú > *Editar posiciones*: arrastra cualquier botón. Si solo lo tocas, abre su configuración (tamaño, opacidad, posición exacta, colores). `LISTO` guarda y sale.
+- Los toques que no caen sobre un botón pasan al juego, así el menú ImGui sigue funcionando. La cámara táctil solo responde a la derecha del porcentaje de pantalla que elijas.
 
-### 2. Download 2 Ship 2 Harkinian from [Releases](https://github.com/2ship2harkinian/2ship2harkinian/releases)
+## Lo que falta (bloqueante)
 
-### 3. Launch the Game!
-#### Windows
-* Extract the zip
-* Launch `2ship.exe`
+Los métodos nativos `attachController`, `setButton`, `setAxis` y `setCameraState` no están en el repo principal. Viven en el submódulo `libultraship` del fork de Waterdish (commit `ece7ef4`), que venía vacío en tu zip.
 
-#### Linux
-* Place your supported copy of the game in the same folder as the appimage.
-* Execute `2ship.appimage`. You may have to `chmod +x` the appimage via terminal.
+Para subir a la versión nueva de 2Ship (que usa `kenix3/libultraship` en el commit `7f9b86a`) hay que portar esos parches. Sin ellos el lado Java compila, pero el juego no recibe los toques.
 
-#### macOS
-* Run `2ship.app`.
-* When prompted, select your supported copy of the game.
+Necesito, como zip: `Waterdish/libultraship @ ece7ef4` y `kenix3/libultraship @ 7f9b86a`. Si se puede, también `Waterdish/ZAPDTR @ 24ca939` y `Waterdish/OTRExporter @ 1cbb1b6`, porque la extracción del ROM se hace en el teléfono.
 
-### 4. Play!
+## Anchor
 
-Congratulations, you are now sailing with 2 Ship 2 Harkinian! Have fun!
-
-# Configuration
-
-### Default keyboard configuration
-| N64 | A | B | Z | Start | Analog stick | C buttons | D-Pad |
-| - | - | - | - | - | - | - | - |
-| Keyboard | X | C | Z | Space | WASD | Arrow keys | TFGH |
-
-### Other shortcuts
-| Keys | Action |
-| - | - |
-| F1 | Toggle menubar |
-| F11 | Fullscreen |
-| Tab | Toggle Alternate assets |
-| Ctrl+R | Reset |
-
-### Graphics Backends
-Currently, there are three rendering APIs supported: DirectX 11 (Windows), OpenGL (all platforms), and Metal (macOS). You can change which API to use in the `Settings` menu of the menubar, which requires a restart.
-
-If you're having an issue with crashing, you can also change the API manually in the `2ship2harkinian.json` file by finding the `"Backend": {` section and updating the backend ID and name. Be sure to use one of the valid values:
-
-- `0` = DirectX 11 (default on Windows)
-- `1` = OpenGL
-- `2` = Metal (default on macOS)
-
-# Custom Assets
-
-Custom assets are packed in `.o2r` or `.otr` files. To use custom assets, place them in the `mods` folder.
-
-If you're interested in creating and/or packing your own custom asset `.o2r`/`.otr` files, check out the following tools:
-* [**retro - OTR and O2R generator**](https://github.com/HarbourMasters/retro/releases/latest)
-* [**fast64 - Blender plugin**](https://github.com/HarbourMasters/fast64)
-
-# Development
-
-If you want to manually compile 2S2H, please consult the [building instructions](docs/BUILDING.md).
-
-# Nightly Builds
-If you want to playtest a continuous integration build, you can find them at the links below. Keep in mind that these are for playtesting only, and you will likely encounter bugs and possibly crashes. 
-
-* [Windows](https://nightly.link/2ship2harkinian/2ship2harkinian/workflows/main/develop/2ship-windows.zip)
-* [Linux](https://nightly.link/2ship2harkinian/2ship2harkinian/workflows/main/develop/2ship-linux.zip)
-* [Mac](https://nightly.link/2ship2harkinian/2ship2harkinian/workflows/main/develop/2ship-mac.zip)
-
-<a href="https://github.com/Kenix3/libultraship/">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/poweredbylus.darkmode.png">
-    <img alt="Powered by libultraship" src="./docs/poweredbylus.lightmode.png">
-  </picture>
-</a>
-
+El repo `anchor` es solo el servidor (Go). El cliente es código del juego y 2Ship no lo trae, ni en PC ni en Android. Hay que escribirlo desde cero para Majora's Mask.
