@@ -1,9 +1,9 @@
-name: Android 64 Bits Build
+name: ANDROID BUILD 64 Bits
 
 on:
   workflow_dispatch:
   push:
-    branches: [android, main]
+    branches: [android, main, develop]
 
 concurrency:
   group: android-${{ github.ref }}
@@ -105,7 +105,6 @@ jobs:
 
       - name: Install Android CMake
         run: |
-          sdkmanager --list | grep -F "cmake;3.28.3" || true
           sdkmanager --install "cmake;3.28.3" || true
 
       - name: Cache Gradle
@@ -119,7 +118,7 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Build APK
+      - name: Build APK (arm64-v8a)
         working-directory: Android
         run: |
           chmod +x ./gradlew
