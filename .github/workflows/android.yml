@@ -1,12 +1,9 @@
-name: android-arm64
+name: Android 64 Bits Build
 
-# Compila un APK arm64-v8a. Basado en la estructura real del port de Waterdish:
-#   - proyecto Gradle en ./Android (usa ../../CMakeLists.txt)
-#   - 2ship.o2r se genera en el host (igual que main.yml de upstream) y se mete en los assets del APK
 on:
   workflow_dispatch:
   push:
-    branches: [ android, main ]
+    branches: [android, main]
 
 concurrency:
   group: android-${{ github.ref }}
@@ -15,88 +12,121 @@ concurrency:
 jobs:
   generate-2ship-o2r:
     runs-on: ubuntu-22.04
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: true
-      - name: ccache
+
+      - name: Configure ccache
         uses: hendrikmuhs/ccache-action@v1.2.13
         with:
           key: ${{ runner.os }}-o2r-${{ github.sha }}
           restore-keys: ${{ runner.os }}-o2r-
-      - name: Dependencias
+
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y $(cat .github/workflows/apt-deps.txt) libzip-dev zipcmp zipmerge ziptool
-      - name: SDL 2.28.5
+          sudo apt-get install -y $(cat .github/workflows/apt-deps.txt) libzip-dev zipcmp zipmerge ziptool ninja-build
+
+      - name: Build SDL 2.28.5
         run: |
           wget -q https://github.com/libsdl-org/SDL/releases/download/release-2.28.5/SDL2-2.28.5.tar.gz
           tar -xzf SDL2-2.28.5.tar.gz
-          cd SDL2-2.28.5 && ./configure --enable-hidapi-libusb && make -j4
+          cd SDL2-2.28.5
+          ./configure --enable-hidapi-libusb
+          make -j"$(nproc)"
           sudo make install
           sudo cp -av /usr/local/lib/libSDL* /lib/x86_64-linux-gnu/
-      - name: tinyxml2 10.0.0
+
+      - name: Build tinyxml2 10.0.0
         run: |
           sudo apt-get remove -y libtinyxml2-dev
           wget -q https://github.com/leethomason/tinyxml2/archive/refs/tags/10.0.0.tar.gz
           tar -xzf 10.0.0.tar.gz
-          cd tinyxml2-10.0.0 && mkdir -p build && cd build && cmake .. && make -j4 && sudo make install
-      - name: Generar 2ship.o2r
+          cd tinyxml2-10.0.0
+          cmake -S . -B build
+          cmake --build build --parallel
+          sudo cmake --install build
+
+      - name: Generate 2ship.o2r
         run: |
           export PATH="/usr/lib/ccache:$PATH"
-          cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release
-          cmake --build build-cmake --config Release --target Generate2ShipOtr -j3
-      - uses: actions/upload-artifact@v4
+          cmake --no-warn-unused-cli -S . -B build-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-cmake --config Release --target Generate2ShipOtr --parallel 3
+
+      - name: Upload 2ship.o2r
+        uses: actions/upload-artifact@v4
         with:
           name: 2ship.o2r
           path: 2ship.o2r
+          if-no-files-found: error
           retention-days: 1
 
   build-apk:
     needs: generate-2ship-o2r
     runs-on: ubuntu-22.04
     timeout-minutes: 120
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: true
 
-      - uses: actions/download-artifact@v4
+      - name: Download 2ship.o2r
+        uses: actions/download-artifact@v4
         with:
           name: 2ship.o2r
           path: Android/app/src/main/assets
 
-      - uses: actions/setup-java@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
+          cache: gradle
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
 
-      - name: NDK 26 y CMake 3.28.3
+      - name: Install Android SDK packages
         run: |
-          sdkmanager "ndk;26.0.10792818" "platforms;android-33" "build-tools;34.0.0"
-          sdkmanager "cmake;3.28.3" || echo "cmake;3.28.3 no está en sdkmanager, se usa el de pip"
-          pip install --user cmake==3.28.3 ninja
+          sdkmanager --install \
+            "ndk;26.0.10792818" \
+            "platforms;android-33" \
+            "build-tools;34.0.0"
+
+      - name: Install CMake and Ninja
+        run: |
+          python3 -m pip install --user cmake==3.28.3 ninja
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - uses: actions/cache@v4
+      - name: Install Android CMake
+        run: |
+          sdkmanager --list | grep -F "cmake;3.28.3" || true
+          sdkmanager --install "cmake;3.28.3" || true
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
             ~/.ccache
-          key: gradle-${{ runner.os }}-${{ hashFiles('Android/**/*.gradle', 'CMakeLists.txt') }}
-          restore-keys: gradle-${{ runner.os }}-
+          key: gradle-${{ runner.os }}-${{ hashFiles('Android/**/*.gradle*', 'Android/gradle.properties', 'Android/gradle/wrapper/gradle-wrapper.properties', 'CMakeLists.txt') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
-      - name: Compilar APK (solo arm64-v8a)
+      - name: Build APK
         working-directory: Android
         run: |
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: 2ship-android-arm64
           path: Android/app/build/outputs/apk/debug/*.apk
