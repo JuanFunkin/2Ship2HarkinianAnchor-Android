@@ -86,7 +86,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
+
+      - name: Set up Gradle 8.3.2
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.3.2'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -107,22 +111,11 @@ jobs:
         run: |
           sdkmanager --install "cmake;3.28.3" || true
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            ~/.ccache
-          key: gradle-${{ runner.os }}-${{ hashFiles('Android/**/*.gradle*', 'Android/gradle.properties', 'Android/gradle/wrapper/gradle-wrapper.properties', 'CMakeLists.txt') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
       - name: Build APK (arm64-v8a)
         working-directory: Android
         run: |
-          chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          gradle --version
+          gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
