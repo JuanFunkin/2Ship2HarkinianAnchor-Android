@@ -51,7 +51,7 @@ bool DrawCheckCVar(const char* label, const char* cvar, bool def) {
     return false;
 }
 
-void Save() {
+void AnchorSaveCVars() {
     Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
 }
 
@@ -69,7 +69,7 @@ void Anchor_DrawMenu() {
         ImGui::SetNextItemWidth(120.0f);
         if (ImGui::InputInt("Puerto", &p, 0, 0)) {
             CVarSetInteger("gAnchor.Port", p);
-            Save();
+            AnchorSaveCVars();
         }
     }
     DrawTextCVar("Sala", "gAnchor.Room", "", room);
@@ -87,14 +87,14 @@ void Anchor_DrawMenu() {
         ImGui::SetNextItemWidth(200.0f);
         if (ImGui::SliderInt("Dano por golpe (16 = 1 corazon)", &dmg, 4, 48)) {
             CVarSetInteger("gAnchor.PvpDamage", dmg);
-            Save();
+            AnchorSaveCVars();
         }
     }
     DrawCheckCVar("Compartir objetos con el equipo", "gAnchor.ShareItems", true);
     DrawCheckCVar("Compartir flags de eventos con el equipo (experimental)", "gAnchor.ShareFlags", false);
 
     if (lookChanged || pvpChanged) {
-        Save();
+        AnchorSaveCVars();
         if (status == AnchorStatus::Connected) {
             Anchor_NotifyLocalStateChanged();
         }
@@ -103,7 +103,7 @@ void Anchor_DrawMenu() {
     ImGui::Spacing();
     if (status == AnchorStatus::Disconnected) {
         if (ImGui::Button("Conectar")) {
-            Save();
+            AnchorSaveCVars();
             Anchor_NotifyLocalStateChanged();
             client.Connect();
         }

@@ -471,6 +471,9 @@ COMPILE_FLAGS "-O2"
 SKIP_PRECOMPILE_HEADERS ON
 )
 
+# El socket de Anchor usa winsock2.h, que no puede incluirse despues de windows.h (el PCH ya lo trae).
+set_source_files_properties(2s2h/Network/Anchor/AnchorSocket.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+
 ################################################################################
 # Precompiled Headers
 ################################################################################

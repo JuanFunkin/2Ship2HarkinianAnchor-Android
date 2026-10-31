@@ -220,8 +220,8 @@ void GhostDraw(Actor* actor, PlayState* play) {
     Player* d = it->second->dummy;
 
     OPEN_DISPS(play->state.gfxCtx);
-    gSPSegment(POLY_OPA_DISP++, 0x0C, gCullBackDList);
-    gSPSegment(POLY_XLU_DISP++, 0x0C, gCullBackDList);
+    gSPSegment(POLY_OPA_DISP++, 0x0C, (uintptr_t)gCullBackDList);
+    gSPSegment(POLY_XLU_DISP++, 0x0C, (uintptr_t)gCullBackDList);
     CLOSE_DISPS(play->state.gfxCtx);
 
     Player_DrawImpl(play, d->skelAnime.skeleton, d->skelAnime.jointTable, d->skelAnime.dListCount, 0,
