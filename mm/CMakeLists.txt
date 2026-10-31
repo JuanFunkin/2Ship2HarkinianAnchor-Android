@@ -176,7 +176,12 @@ set(ALL_FILES
 ################################################################################
 # Target
 ################################################################################
-add_executable(${PROJECT_NAME} ${ALL_FILES})
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+    add_executable(${PROJECT_NAME} ${ALL_FILES})
+else()
+    # En Android el juego es una libreria (lib2s2h.so) que SDLActivity carga
+    add_library(${PROJECT_NAME} SHARED ${ALL_FILES})
+endif()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 use_props(${PROJECT_NAME} "${CMAKE_CONFIGURATION_TYPES}" "${DEFAULT_CXX_PROPS}")
@@ -678,4 +683,9 @@ wut_create_wuhb(${PROJECT_NAME}
 
 INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/2s2h.rpx ${CMAKE_CURRENT_BINARY_DIR}/2s2h.wuhb DESTINATION . COMPONENT 2s2h)
 
+endif()
+
+# Anchor (cliente multijugador): sockets de Windows
+if (WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
 endif()

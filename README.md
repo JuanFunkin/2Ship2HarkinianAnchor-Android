@@ -1,41 +1,24 @@
-# 2Ship Android (arm64): controles táctiles configurables
+# Anchor para 2Ship (PC + Android) y arreglos del build de Android
 
-Estado: escrito leyendo tus repos, **NO compilado**. Pásame los errores del compilador y los voy corrigiendo.
+Escrito leyendo tus repos; NO esta compilado. Pasame el log de errores y lo corrijo.
 
-## Qué hay en este paquete
+## Como aplicarlo
+Copia el contenido de esta carpeta encima de la raiz de tu repo (mismas rutas, sobrescribe).
 
-| Archivo | Para qué |
-|---|---|
-| `Android/app/src/main/java/com/dishii/mm/ControlsConfig.java` | Posición, tamaño, opacidad y colores de cada botón, más ajustes globales (se guardan en JSON) |
-| `.../TouchControlsView.java` | Dibuja los controles (opacos y con borde) y manda los toques al juego. Multitoque y modo edición (arrastrar) |
-| `.../ControlsSettings.java` | Menú dentro de la app: tamaño global, opacidad, borde, cámara; por botón: tamaño, opacidad, X/Y y 4 colores |
-| `.../MainActivity.java` | El de Waterdish con el overlay XML reemplazado. Conserva los métodos nativos y `Enable/DisableTouchArea` |
-| `Android/app/build.gradle` | Solo `arm64-v8a`, versión 2.0.0-anchor |
-| `Android/app/src/main/AndroidManifest.xml` | Igual que el original, más permiso INTERNET (para Anchor) |
-| `.github/workflows/android.yml` | CI: genera `2ship.o2r` y compila el APK en GitHub Actions |
-| `ANCHOR_PROTOCOL.md` | Protocolo del servidor Anchor, leído de su código |
+## Anchor (mm/2s2h/Network/Anchor/)
+- `AnchorSocket` / `AnchorClient`: red (Windows, Linux, macOS y Android), sin dependencias nuevas. Hilos de lectura y escritura, reconexion automatica.
+- `AnchorGame`: pose en vivo (20 Hz), jugadores remotos como actores (copian la pose exacta, con nombre), PvP, objetos y flags compartidos por equipo.
+- `AnchorRecolor`: colores de tunica, pelo y botas POR JUGADOR. Copia la display list para cada juego de colores en lugar de modificar la original (asi no se pisan entre jugadores).
+- `AnchorMenu`: pestana "Anchor" en Settings (servidor, sala, equipo, nombre, colores, PvP).
+- `BenMenu.cpp` y `mm/CMakeLists.txt` ya traen el enganche (`ws2_32` en Windows, libreria compartida en Android).
 
-## Cómo aplicarlo
+## Arreglos de Android
+- Workflow: `cmake;3.28.3` no existe en sdkmanager (era el error). Ahora CMake 3.28.3 viene de Kitware y se pasa con `cmake.dir`.
+- Se restauraron los archivos que faltaban en `Android/`: `res/`, clases de SDL, `AssetCopyUtil`, `gradlew` y wrapper (Gradle 8.3), `proguard-rules.pro`.
+- El CMake raiz ya copia el extractor a los assets del APK y no corre CPack en Android.
 
-1. Copia estas carpetas encima de tu repo, en las mismas rutas. Sobrescribe `MainActivity.java`, `build.gradle` y `AndroidManifest.xml`.
-2. Ya no se usan `res/layout/touchcontrol_overlay.xml` ni los drawables `ic_*`. Puedes borrarlos o dejarlos.
-3. Sube a GitHub y ejecuta *Actions > android-arm64 > Run workflow*.
-
-## Cómo se usa en el teléfono
-
-- Botón `☰` (arriba al centro): abre el menú de controles.
-- `◉`: oculta o muestra todos los controles.
-- Menú > *Editar posiciones*: arrastra cualquier botón. Si solo lo tocas, abre su configuración (tamaño, opacidad, posición exacta, colores). `LISTO` guarda y sale.
-- Los toques que no caen sobre un botón pasan al juego, así el menú ImGui sigue funcionando. La cámara táctil solo responde a la derecha del porcentaje de pantalla que elijas.
-
-## Lo que falta (bloqueante)
-
-Los métodos nativos `attachController`, `setButton`, `setAxis` y `setCameraState` no están en el repo principal. Viven en el submódulo `libultraship` del fork de Waterdish (commit `ece7ef4`), que venía vacío en tu zip.
-
-Para subir a la versión nueva de 2Ship (que usa `kenix3/libultraship` en el commit `7f9b86a`) hay que portar esos parches. Sin ellos el lado Java compila, pero el juego no recibe los toques.
-
-Necesito, como zip: `Waterdish/libultraship @ ece7ef4` y `kenix3/libultraship @ 7f9b86a`. Si se puede, también `Waterdish/ZAPDTR @ 24ca939` y `Waterdish/OTRExporter @ 1cbb1b6`, porque la extracción del ROM se hace en el teléfono.
-
-## Anchor
-
-El repo `anchor` es solo el servidor (Go). El cliente es código del juego y 2Ship no lo trae, ni en PC ni en Android. Hay que escribirlo desde cero para Majora's Mask.
+## Limitaciones conocidas
+1. El CMake nuevo no tiene soporte de Android para las dependencias (SDL, libzip, ogg/vorbis/opus, etc. venian del port viejo y de `libultraship`). Lo siguiente que fallara en CI casi seguro es la configuracion de CMake; pasame ese log.
+2. Los metodos nativos de controles (`setButton`, `setAxis`...) viven en `libultraship`; sin ellos los controles tactiles no llegan al juego.
+3. Colores: la clasificacion por tono (verde = tunica, amarillo = pelo, marron = botas) es una heuristica. Si algo se pinta mal, se ajusta en `AnchorRecolor.cpp`.
+4. No se sincroniza el guardado completo ni las flags de escenas, solo objetos y flags de eventos.

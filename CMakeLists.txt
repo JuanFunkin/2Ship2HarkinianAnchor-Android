@@ -180,6 +180,18 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 ################################################################################
 add_compile_definitions(CONTROLLERBUTTONS_T=uint32_t)
 
+# --- Android: el APK lleva el extractor y los XML dentro de los assets para extraer el ROM en el telefono
+if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Android")
+    set(ANDROID_ASSETS_EXTRACTOR "${CMAKE_SOURCE_DIR}/Android/app/src/main/assets/assets/extractor")
+    file(COPY "${CMAKE_SOURCE_DIR}/mm/assets/extractor/" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}")
+    file(COPY "${CMAKE_SOURCE_DIR}/mm/assets/xml/" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/xmls")
+    file(COPY "${CMAKE_SOURCE_DIR}/OTRExporter/CFG/filelists/" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/filelists")
+    file(COPY "${CMAKE_SOURCE_DIR}/OTRExporter/CFG/ActorList_MM.txt" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/symbols")
+    file(COPY "${CMAKE_SOURCE_DIR}/OTRExporter/CFG/ObjectList_MM.txt" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/symbols")
+    file(COPY "${CMAKE_SOURCE_DIR}/OTRExporter/CFG/SymbolMap_MM.txt" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/symbols")
+endif()
+
+
 ################################################################################
 # Sub-projects
 ################################################################################
@@ -313,5 +325,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     set(CPACK_GENERATOR "Bundle")
 endif()
 
-set(CPACK_PROJECT_CONFIG_FILE ${CMAKE_SOURCE_DIR}/CMake/Packaging-2.cmake)
-include(CMake/Packaging.cmake)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+    set(CPACK_PROJECT_CONFIG_FILE ${CMAKE_SOURCE_DIR}/CMake/Packaging-2.cmake)
+    include(CMake/Packaging.cmake)
+endif()

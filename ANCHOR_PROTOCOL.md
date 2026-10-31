@@ -1,29 +1,16 @@
-# Protocolo de Anchor (leído de server.go, client.go, team.go y room.go)
+# Anchor para 2Ship: protocolo y paquetes propios
 
-Transporte: TCP, puerto 43383 (servidor público por defecto: `anchor.hm64.org:43383`).
-Cada paquete es un JSON terminado en un byte NUL (0x00). Tamaño máximo: 8 MiB.
+Servidor: https://github.com/garrettjoecox/anchor (TCP, JSON terminado en NUL, puerto 43383).
+El servidor no conoce el juego. Estos son los paquetes que define el cliente de 2Ship:
 
-## Conexión
+| Tipo | Ruta | Contenido |
+|---|---|---|
+| `HANDSHAKE` | servidor | `roomId`, `clientId`, `clientState` (name, teamId, pvp, tunic, hair, boots, sceneId, form, health) |
+| `UPDATE_CLIENT_STATE` | sala | `state` con los mismos campos; se envia al cambiar escena, forma, vida, colores o PvP |
+| `PLAYER_POSE` | sala (`quiet`) | `x,y,z,ry,sceneId,form,health` y `j`: 69 enteros (23 articulaciones x 3) con la pose de Link |
+| `PVP_HIT` | `targetClientId` | `damage` (16 = 1 corazon) |
+| `ITEM_GIVE` | `targetTeamId` | `item` |
+| `FLAG_SET` | `targetTeamId` | `flagType` (week event reg / event inf), `flag` |
 
-1. **Handshake** (obligatorio, primer paquete):
-   `{"type":"HANDSHAKE","roomId":"<sala>","clientId":<0 o id previo>,"clientState":{"teamId":"<equipo>", ...}}`
-   - `clientId` 0: el servidor asigna uno. Si reconectas con el mismo id y la misma sala, reemplaza la sesión vieja.
-   - El servidor responde con el estado de todos los clientes y un `UPDATE_ROOM_STATE`.
-2. **Health check**: `{"type":"STATS"}` devuelve `uniqueCount`, `gameCompleteCount` y `onlineCount`.
-3. Tras ~30 s sin actividad el servidor manda `{"type":"HEARTBEAT","quiet":true}`. Una sala inactiva 5 min se borra.
-
-## Enrutado (según los campos del paquete)
-
-- `targetClientId`: solo a ese cliente.
-- `targetTeamId`: al equipo. Con `"addToQueue":true` se guarda en la cola del equipo (máx. 512) para quien entre después.
-- `UPDATE_CLIENT_STATE`: actualiza el estado del cliente (`state.teamId` decide el equipo).
-- `REQUEST_TEAM_STATE`: pide el guardado de un compañero en línea (el que tenga `isSaveLoaded=true`), o el último guardado del equipo más su cola si no hay nadie.
-- `UPDATE_TEAM_STATE`: responde esa petición y se guarda como estado del equipo.
-- `UPDATE_ROOM_STATE`: estado global de la sala; se reenvía a todos.
-- Cualquier otro tipo: broadcast a toda la sala.
-- `"quiet":true` evita el log del servidor (úsalo en paquetes de posición).
-- `GAME_COMPLETE` incrementa el contador global.
-
-## Qué falta
-
-El servidor no conoce el juego. El significado de los paquetes (flags, ítems, escena, posición) lo define el cliente dentro de 2Ship. Para Majora's Mask hay que escribir ese cliente y engancharlo a los hooks de `GameInteractor`.
+Todos los paquetes llevan `clientId` para que el servidor no te los devuelva a ti.
+Colores: enteros `0xRRGGBB`. PvP: ambos jugadores deben tenerlo activado.

@@ -54,7 +54,8 @@ android {
             //}
             cmake {
                  path '../../CMakeLists.txt'
-                 version "3.28.3"
+                 // CMake 3.28.3 NO existe en sdkmanager. La ruta se da con cmake.dir en
+                 // Android/local.properties (el workflow lo escribe).
             }
         }
        
@@ -83,7 +84,7 @@ dependencies {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '8.3.2'
+    gradleVersion = '8.3'
 }
 
 task prepareKotlinBuildScriptModel {
