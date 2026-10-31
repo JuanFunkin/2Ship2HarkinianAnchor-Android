@@ -39,6 +39,15 @@ if(TARGET ogg AND NOT TARGET Ogg::ogg)
 endif()
 set(Ogg_FOUND TRUE)
 
+# ------------------------------------------------------------------ tinyxml2 (lo usan ZAPD y OTRExporter)
+set(tinyxml2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(tinyxml2
+    URL https://github.com/leethomason/tinyxml2/archive/refs/tags/10.0.0.tar.gz)
+FetchContent_MakeAvailable(tinyxml2)
+if(TARGET tinyxml2 AND NOT TARGET tinyxml2::tinyxml2)
+    add_library(tinyxml2::tinyxml2 ALIAS tinyxml2)
+endif()
+
 # Desde aqui find_package de estos paquetes se da por resuelto (los targets existen en este build).
 # Se conserva el comportamiento normal para todo lo demas mediante _find_package.
 set(ANDROID_PROVIDED_PACKAGES PNG Ogg Vorbis Opus OpusFile)
@@ -101,5 +110,10 @@ target_link_libraries(opusfile PUBLIC opus ogg)
 add_library(OpusFile::opusfile ALIAS opusfile)
 
 # (los includes de opus/opusfile los aporta el target opusfile; no se tocan los targets exportados de vorbis/opus)
+
+# Al final, para no contaminar los targets exportados de vorbis/opus (solo afecta a lo que se cree despues).
+# ZAPD hace #include <tinyxml2.h> sin enlazar el target, asi que se da la ruta a todo lo que venga despues
+include_directories("${tinyxml2_SOURCE_DIR}")
+link_libraries(tinyxml2)
 
 set(BUILD_SHARED_LIBS "${_anchor_saved_bsl}")
