@@ -100,10 +100,6 @@ target_compile_definitions(opusfile PRIVATE OP_DISABLE_HTTP OP_DISABLE_DOCS OP_D
 target_link_libraries(opusfile PUBLIC opus ogg)
 add_library(OpusFile::opusfile ALIAS opusfile)
 
-foreach(_t vorbis vorbisfile vorbisenc opus)
-    if(TARGET ${_t})
-        target_include_directories(${_t} INTERFACE "${ANDROID_AUDIO_INC}")
-    endif()
-endforeach()
+# (los includes de opus/opusfile los aporta el target opusfile; no se tocan los targets exportados de vorbis/opus)
 
 set(BUILD_SHARED_LIBS "${_anchor_saved_bsl}")
