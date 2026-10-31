@@ -181,20 +181,21 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 add_compile_definitions(CONTROLLERBUTTONS_T=uint32_t)
 
 # --- Android: el APK lleva el extractor y los XML dentro de los assets para extraer el ROM en el telefono
+# (misma estructura que la instalacion de escritorio: assets/extractor/{filelists,symbols} y assets/xml)
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Android")
-    set(ANDROID_ASSETS_EXTRACTOR "${CMAKE_SOURCE_DIR}/Android/app/src/main/assets/assets/extractor")
-    file(COPY "${CMAKE_SOURCE_DIR}/mm/assets/extractor/" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}")
-    file(COPY "${CMAKE_SOURCE_DIR}/mm/assets/xml/" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/xmls")
-    file(COPY "${CMAKE_SOURCE_DIR}/OTRExporter/CFG/filelists/" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/filelists")
-    file(COPY "${CMAKE_SOURCE_DIR}/OTRExporter/CFG/ActorList_MM.txt" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/symbols")
-    file(COPY "${CMAKE_SOURCE_DIR}/OTRExporter/CFG/ObjectList_MM.txt" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/symbols")
-    file(COPY "${CMAKE_SOURCE_DIR}/OTRExporter/CFG/SymbolMap_MM.txt" DESTINATION "${ANDROID_ASSETS_EXTRACTOR}/symbols")
+    set(ANDROID_ASSETS_DIR "${CMAKE_SOURCE_DIR}/Android/app/src/main/assets/assets")
+    file(COPY "${CMAKE_SOURCE_DIR}/mm/assets/extractor/" DESTINATION "${ANDROID_ASSETS_DIR}/extractor")
+    file(COPY "${CMAKE_SOURCE_DIR}/mm/assets/xml/" DESTINATION "${ANDROID_ASSETS_DIR}/xml")
 endif()
 
 
 ################################################################################
 # Sub-projects
 ################################################################################
+if (ANDROID)
+    include(CMake/AndroidDeps.cmake)
+endif()
+
 add_subdirectory(libultraship ${CMAKE_BINARY_DIR}/libultraship)
 target_compile_definitions(libultraship PUBLIC INCLUDE_MPQ_SUPPORT)
 

@@ -225,7 +225,9 @@ endif()
 ################################################################################
 # Compile definitions
 ################################################################################
-find_package(SDL2)
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+    find_package(SDL2)
+endif()
 set(SDL2-INCLUDE ${SDL2_INCLUDE_DIRS})
 
 if (BUILD_CROWD_CONTROL)
@@ -598,6 +600,27 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
     )
     target_include_directories(${PROJECT_NAME} PRIVATE
         ${DEVKITPRO}/portlibs/wiiu/include/
+    )
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Android")
+    # Android: las librerias de audio/png salen de CMake/AndroidDeps.cmake; SDL2 la trae libultraship
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    set(ADDITIONAL_LIBRARY_DEPENDENCIES
+        "libultraship;"
+        "ZAPDLib;"
+        "Ogg::ogg"
+        "Vorbis::vorbis"
+        "Vorbis::vorbisenc"
+        "Vorbis::vorbisfile"
+        "Opus::opus"
+        "OpusFile::opusfile"
+        SDL2::SDL2
+        log
+        android
+        EGL
+        GLESv3
+        ${CMAKE_DL_LIBS}
+        Threads::Threads
     )
 else()
     find_package(SDL2)
