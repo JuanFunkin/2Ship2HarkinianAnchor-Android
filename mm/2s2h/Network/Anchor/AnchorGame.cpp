@@ -219,10 +219,11 @@ void GhostDraw(Actor* actor, PlayState* play) {
     }
     Player* d = it->second->dummy;
 
-    OPEN_DISPS(play->state.gfxCtx);
+    // No se usa OPEN_DISPS/CLOSE_DISPS: esas macros declaran funciones locales (FrameInterpolation_*) que, dentro
+    // de un namespace anonimo, quedan con enlace interno y no se pueden resolver al enlazar.
+    GraphicsContext* __gfxCtx = play->state.gfxCtx;
     gSPSegment(POLY_OPA_DISP++, 0x0C, (uintptr_t)gCullBackDList);
     gSPSegment(POLY_XLU_DISP++, 0x0C, (uintptr_t)gCullBackDList);
-    CLOSE_DISPS(play->state.gfxCtx);
 
     Player_DrawImpl(play, d->skelAnime.skeleton, d->skelAnime.jointTable, d->skelAnime.dListCount, 0,
                     (PlayerTransformation)d->transformation, 0, 0, GhostOverrideLimbDraw,

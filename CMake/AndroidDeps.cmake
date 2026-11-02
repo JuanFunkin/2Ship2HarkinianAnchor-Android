@@ -50,7 +50,7 @@ endif()
 
 # Desde aqui find_package de estos paquetes se da por resuelto (los targets existen en este build).
 # Se conserva el comportamiento normal para todo lo demas mediante _find_package.
-set(ANDROID_PROVIDED_PACKAGES PNG Ogg Vorbis Opus OpusFile)
+set(ANDROID_PROVIDED_PACKAGES PNG Ogg Vorbis Opus OpusFile tinyxml2)
 macro(find_package)
     if("${ARGV0}" IN_LIST ANDROID_PROVIDED_PACKAGES)
         set(${ARGV0}_FOUND TRUE)
