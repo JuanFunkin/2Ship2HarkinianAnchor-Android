@@ -114,6 +114,6 @@ add_library(OpusFile::opusfile ALIAS opusfile)
 # Al final, para no contaminar los targets exportados de vorbis/opus (solo afecta a lo que se cree despues).
 # ZAPD hace #include <tinyxml2.h> sin enlazar el target, asi que se da la ruta a todo lo que venga despues
 include_directories("${tinyxml2_SOURCE_DIR}")
-link_libraries(tinyxml2)
+# (tinyxml2 se enlaza solo contra el juego, en mm/CMakeLists.txt; un link_libraries global rompe el export de libzip)
 
 set(BUILD_SHARED_LIBS "${_anchor_saved_bsl}")

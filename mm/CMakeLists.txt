@@ -624,6 +624,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Android")
         GLESv3
         ${CMAKE_DL_LIBS}
         Threads::Threads
+        tinyxml2
     )
 else()
     find_package(SDL2)
