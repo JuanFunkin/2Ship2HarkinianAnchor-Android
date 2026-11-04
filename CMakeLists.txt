@@ -197,6 +197,16 @@ if (ANDROID)
 endif()
 
 add_subdirectory(libultraship ${CMAKE_BINARY_DIR}/libultraship)
+
+# Android: libultraship compila libzip por su cuenta (FetchContent) pero no comparte sus headers;
+# OTRExporter / ZAPD necesitan <zip.h> y <zipconf.h>.
+if (ANDROID)
+    FetchContent_GetProperties(libzip SOURCE_DIR ANDROID_LIBZIP_SRC BINARY_DIR ANDROID_LIBZIP_BIN)
+    include_directories("${ANDROID_LIBZIP_SRC}/lib" "${ANDROID_LIBZIP_BIN}")
+    if (TARGET zip)
+        link_libraries(zip)
+    endif()
+endif()
 target_compile_definitions(libultraship PUBLIC INCLUDE_MPQ_SUPPORT)
 
 # LUS ships no PCH of its own and these headers dominate its build. Done here rather than in the
