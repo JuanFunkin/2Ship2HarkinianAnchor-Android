@@ -57,10 +57,6 @@ int sLastScene = -1;
 int sLastForm = -1;
 int sLastHealth = -1;
 
-bool CvarBool(const char* name, bool def) {
-    return CVarGetInteger(name, def ? 1 : 0) != 0;
-}
-
 // ------------------------------------------------------------------------------ estado local
 
 json BuildLocalState() {
@@ -68,7 +64,7 @@ json BuildLocalState() {
     AnchorLook look = Anchor_GetLocalLook();
     s["name"] = Anchor_GetName();
     s["teamId"] = std::string(CVarGetString("gAnchor.Team", "default"));
-    s["pvp"] = CvarBool("gAnchor.Pvp", false);
+    s["pvp"] = false; // el PvP lo decide la sala (Room Settings)
     s["tunic"] = (int64_t)look.tunic;
     s["hair"] = (int64_t)look.hair;
     s["boots"] = (int64_t)look.boots;
@@ -110,6 +106,18 @@ void SendPose(Player* p) {
     }
     j["j"] = std::move(joints);
     AnchorClient::Get().Send(std::move(j));
+}
+
+// ------------------------------------------------------------------------------ reglas de sala
+
+bool RemoteAllowedBy(int mode, const AnchorRemote& r) {
+    if (mode <= 0) {
+        return false;
+    }
+    if (mode == 1) {
+        return r.teamId == Anchor_GetTeamId();
+    }
+    return true;
 }
 
 // ------------------------------------------------------------------------------ fantasmas
@@ -165,7 +173,8 @@ void GhostUpdate(Actor* actor, PlayState* play) {
 
     AnchorRemote r;
     if (!AnchorClient::Get().GetRemote(g->clientId, &r) || r.sceneId != (int)play->sceneId || !r.hasPose ||
-        (Anchor_NowMs() - r.lastPoseMs) > 5000) {
+        (Anchor_NowMs() - r.lastPoseMs) > 5000 ||
+        !RemoteAllowedBy(Anchor_GetRoomSettings().showLocationsFor, r)) {
         Actor_Kill(actor);
         return;
     }
@@ -273,8 +282,10 @@ void SpawnGhost(PlayState* play, const AnchorRemote& r) {
 }
 
 void SyncGhosts(PlayState* play) {
+    const int showFor = Anchor_GetRoomSettings().showLocationsFor;
     for (const AnchorRemote& r : AnchorClient::Get().Remotes()) {
-        if (!r.hasPose || r.sceneId != (int)play->sceneId || (Anchor_NowMs() - r.lastPoseMs) > 5000) {
+        if (!r.hasPose || r.sceneId != (int)play->sceneId || (Anchor_NowMs() - r.lastPoseMs) > 5000 ||
+            !RemoteAllowedBy(showFor, r)) {
             continue;
         }
         if (sGhostsById.find(r.clientId) == sGhostsById.end()) {
@@ -289,9 +300,11 @@ void TickPvp(PlayState* play, Player* player) {
     if (sPvpCooldown > 0) {
         sPvpCooldown--;
     }
-    if (!CvarBool("gAnchor.Pvp", false)) {
+    const int pvpMode = Anchor_GetRoomSettings().pvpMode;
+    if (pvpMode == 0) {
         return;
     }
+    const std::string myTeam = Anchor_GetTeamId();
     if (player->meleeWeaponState <= 0) {
         sSwingSent = false;
         return;
@@ -302,8 +315,11 @@ void TickPvp(PlayState* play, Player* player) {
     for (auto& kv : sGhostsById) {
         Ghost* g = kv.second;
         AnchorRemote r;
-        if (g->actor == nullptr || !AnchorClient::Get().GetRemote(g->clientId, &r) || !r.pvp) {
+        if (g->actor == nullptr || !AnchorClient::Get().GetRemote(g->clientId, &r)) {
             continue;
+        }
+        if (pvpMode == 1 && r.teamId == myTeam) {
+            continue; // sin fuego amigo
         }
         float dx = g->actor->world.pos.x - player->actor.world.pos.x;
         float dz = g->actor->world.pos.z - player->actor.world.pos.z;
@@ -328,13 +344,89 @@ void TickPvp(PlayState* play, Player* player) {
 }
 
 void ApplyPvpHit(PlayState* play, const json& j) {
-    if (!CvarBool("gAnchor.Pvp", false) || sPvpCooldown > 0) {
+    const int pvpMode = Anchor_GetRoomSettings().pvpMode;
+    if (pvpMode == 0 || sPvpCooldown > 0) {
         return;
+    }
+    if (pvpMode == 1 && j.contains("clientId") && j["clientId"].is_number()) {
+        AnchorRemote from;
+        if (AnchorClient::Get().GetRemote(j["clientId"].get<uint64_t>(), &from) && from.teamId == Anchor_GetTeamId()) {
+            return; // sin fuego amigo
+        }
     }
     int dmg = j.value("damage", 8);
     dmg = std::max(1, std::min(dmg, 64));
     sPvpCooldown = 30;
     Player_InflictDamage(play, -dmg);
+}
+
+// ------------------------------------------------------------------------------ estado del equipo
+
+json BuildTeamState() {
+    json st;
+    json items = json::array();
+    for (int i = 0; i < 48; i++) {
+        items.push_back((int)gSaveContext.save.saveInfo.inventory.items[i]);
+    }
+    json week = json::array();
+    for (int i = 0; i < 100; i++) {
+        week.push_back((int)gSaveContext.save.saveInfo.weekEventReg[i]);
+    }
+    json inf = json::array();
+    for (int i = 0; i < 8; i++) {
+        inf.push_back((int)gSaveContext.save.saveInfo.eventInf[i]);
+    }
+    st["items"] = std::move(items);
+    st["weekEventReg"] = std::move(week);
+    st["eventInf"] = std::move(inf);
+    return st;
+}
+
+// Solo suma: da los objetos que te faltan y enciende flags; nunca quita nada.
+void ApplyTeamState(PlayState* play, const json& st) {
+    if (!st.is_object() || st.empty()) {
+        return;
+    }
+    sApplyingRemote = true;
+    if (st.contains("items") && st["items"].is_array() && st["items"].size() == 48) {
+        for (int i = 0; i < 48; i++) {
+            int v = st["items"][i].get<int>();
+            if (v >= 0 && v < 0xFF && gSaveContext.save.saveInfo.inventory.items[i] == ITEM_NONE) {
+                Item_Give(play, (u8)v);
+            }
+        }
+    }
+    if (st.contains("weekEventReg") && st["weekEventReg"].is_array() && st["weekEventReg"].size() == 100) {
+        for (int i = 0; i < 100; i++) {
+            gSaveContext.save.saveInfo.weekEventReg[i] |= (u8)st["weekEventReg"][i].get<int>();
+        }
+    }
+    if (st.contains("eventInf") && st["eventInf"].is_array() && st["eventInf"].size() == 8) {
+        for (int i = 0; i < 8; i++) {
+            gSaveContext.save.saveInfo.eventInf[i] |= (u8)st["eventInf"][i].get<int>();
+        }
+    }
+    sApplyingRemote = false;
+}
+
+// ------------------------------------------------------------------------------ teletransporte
+
+uint64_t sPendingTeleport = 0;
+
+void TickTeleport(PlayState* play, Player* player) {
+    if (sPendingTeleport == 0) {
+        return;
+    }
+    uint64_t id = sPendingTeleport;
+    sPendingTeleport = 0;
+    AnchorRemote r;
+    if (!AnchorClient::Get().GetRemote(id, &r) || !Anchor_CanTeleportTo(r) || r.sceneId != (int)play->sceneId) {
+        return;
+    }
+    player->actor.world.pos.x = r.x;
+    player->actor.world.pos.y = r.y;
+    player->actor.world.pos.z = r.z;
+    player->actor.prevPos = player->actor.world.pos;
 }
 
 // ------------------------------------------------------------------------------ eventos remotos
@@ -347,14 +439,26 @@ void ProcessEvents() {
         }
         if (type == "PVP_HIT") {
             ApplyPvpHit(gPlayState, j);
-        } else if (type == "ITEM_GIVE" && CvarBool("gAnchor.ShareItems", true)) {
+        } else if (type == "REQUEST_TEAM_STATE") {
+            if (Anchor_GetRoomSettings().syncItemsFlags) {
+                json resp;
+                resp["type"] = "UPDATE_TEAM_STATE";
+                resp["targetTeamId"] = j.value("targetTeamId", Anchor_GetTeamId());
+                resp["state"] = BuildTeamState();
+                AnchorClient::Get().Send(std::move(resp));
+            }
+        } else if (type == "UPDATE_TEAM_STATE") {
+            if (Anchor_GetRoomSettings().syncItemsFlags && j.contains("state")) {
+                ApplyTeamState(gPlayState, j["state"]);
+            }
+        } else if (type == "ITEM_GIVE" && Anchor_GetRoomSettings().syncItemsFlags) {
             int item = j.value("item", -1);
             if (item >= 0 && item < 0xFF) {
                 sApplyingRemote = true;
                 Item_Give(gPlayState, (u8)item);
                 sApplyingRemote = false;
             }
-        } else if (type == "FLAG_SET" && CvarBool("gAnchor.ShareFlags", false)) {
+        } else if (type == "FLAG_SET" && Anchor_GetRoomSettings().syncItemsFlags) {
             int flagType = j.value("flagType", 0);
             int flag = j.value("flag", -1);
             if (flag < 0) {
@@ -423,6 +527,7 @@ void OnUpdate() {
     SendPose(player);
     SyncGhosts(gPlayState);
     TickPvp(gPlayState, player);
+    TickTeleport(gPlayState, player);
 }
 
 void RegisterAnchorHooks() {
@@ -451,7 +556,7 @@ void RegisterAnchorHooks() {
     });
 
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnItemGive>([](u8 item) {
-        if (sApplyingRemote || !CvarBool("gAnchor.ShareItems", true)) {
+        if (sApplyingRemote || !Anchor_GetRoomSettings().syncItemsFlags) {
             return;
         }
         AnchorClient& c = AnchorClient::Get();
@@ -466,7 +571,7 @@ void RegisterAnchorHooks() {
     });
 
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnFlagSet>([](FlagType flagType, u32 flag) {
-        if (sApplyingRemote || !CvarBool("gAnchor.ShareFlags", false)) {
+        if (sApplyingRemote || !Anchor_GetRoomSettings().syncItemsFlags) {
             return;
         }
         if (flagType != FLAG_WEEK_EVENT_REG && flagType != FLAG_EVENT_INF) {
@@ -489,6 +594,18 @@ void RegisterAnchorHooks() {
 
 void Anchor_NotifyLocalStateChanged() {
     SendLocalState();
+}
+
+int Anchor_GetLocalScene() {
+    return (sInPlay && gPlayState != nullptr) ? (int)gPlayState->sceneId : -1;
+}
+
+bool Anchor_CanTeleportTo(const AnchorRemote& r) {
+    return RemoteAllowedBy(Anchor_GetRoomSettings().allowTeleportingTo, r);
+}
+
+void Anchor_RequestTeleport(uint64_t clientId) {
+    sPendingTeleport = clientId;
 }
 
 static RegisterShipInitFunc sAnchorInit(RegisterAnchorHooks);

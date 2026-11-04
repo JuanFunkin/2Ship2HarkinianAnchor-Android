@@ -121,8 +121,8 @@ void DrawPlayerRow(const std::string& name, uint32_t tunic, bool admin, const st
         }
         ImGui::EndDisabled();
         if (!can && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip(sameScene ? "Teleporting to this player is disabled by the room settings."
-                                        : "You can only teleport to players in the same scene.");
+            ImGui::SetTooltip("%s", sameScene ? "Teleporting to this player is disabled by the room settings."
+                                              : "You can only teleport to players in the same scene.");
         }
     }
 }
@@ -150,11 +150,13 @@ class AnchorRoomWindow : public Ship::GuiWindow {
   public:
     using GuiWindow::GuiWindow;
 
-    void InitElement() override{};
+    void InitElement() override {
+    }
     void DrawElement() override {
         DrawRoomPlayers();
     }
-    void UpdateElement() override{};
+    void UpdateElement() override {
+    }
 };
 
 // ------------------------------------------------------------------ columna izquierda

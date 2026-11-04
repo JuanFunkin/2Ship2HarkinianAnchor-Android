@@ -42,6 +42,14 @@ struct AnchorRemote {
 
 enum class AnchorStatus { Disconnected, Connecting, Connected };
 
+// Ajustes de sala: los define el administrador (quien creo la sala) y se comparten con todos.
+struct AnchorRoomSettings {
+    int pvpMode = 0;            // 0 = Off, 1 = On, 2 = On + Friendly Fire
+    int showLocationsFor = 2;   // 0 = None, 1 = Team, 2 = All
+    int allowTeleportingTo = 2; // 0 = None, 1 = Team, 2 = All
+    bool syncItemsFlags = true;
+};
+
 class AnchorClient {
   public:
     static AnchorClient& Get();
@@ -58,6 +66,10 @@ class AnchorClient {
 
     // Sólo hilo del juego.
     std::vector<nlohmann::json> PopGameEvents();
+
+    // Estado de la sala (lo guarda el servidor; el campo ownerClientId identifica al administrador).
+    nlohmann::json GetRoomState() const;
+    void SetRoomState(const nlohmann::json& state);
 
     // Copias seguras de los jugadores remotos.
     std::vector<AnchorRemote> Remotes() const;
@@ -76,8 +88,19 @@ void Anchor_SetLocalLook(const AnchorLook& look);
 std::string Anchor_GetName();
 uint64_t Anchor_NowMs();
 
+// Ajustes de sala y acciones de la interfaz.
+AnchorRoomSettings Anchor_GetRoomSettings();
+void Anchor_SetRoomSettings(const AnchorRoomSettings& settings); // solo administrador
+bool Anchor_IsRoomAdmin();
+uint64_t Anchor_GetRoomOwnerId();
+void Anchor_RequestTeamState();
+void Anchor_ClearAllTeamState(); // solo administrador
+std::string Anchor_GetTeamId();
+
 // Lado del juego (AnchorGame.cpp / AnchorRecolor.cpp / AnchorMenu.cpp).
-void Anchor_DrawMenu();
+int Anchor_GetLocalScene();                    // -1 si no se esta jugando
+bool Anchor_CanTeleportTo(const AnchorRemote& r);
+void Anchor_RequestTeleport(uint64_t clientId); // se ejecuta en el hilo del juego
 void Anchor_NotifyLocalStateChanged(); // reenvía nombre/colores/PvP al servidor
 // Devuelve una copia de la display list con colores de túnica/pelo/botas cambiados (o la original).
 // Se usa void* para no depender de los headers del motor desde este archivo.

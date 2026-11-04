@@ -78,6 +78,9 @@ struct AnchorClient::Impl {
     std::mutex stateMutex;
     json localState = json::object();
 
+    mutable std::mutex roomMutex;
+    json roomState = json::object();
+
     std::string host;
     uint16_t port = 43383;
     std::string room;
@@ -214,7 +217,12 @@ struct AnchorClient::Impl {
                 HandlePose(from, j);
             } else if (type == "UPDATE_CLIENT_STATE") {
                 HandleUpdateClientState(from, j);
-            } else if (type == "HEARTBEAT" || type == "STATS" || type == "UPDATE_ROOM_STATE") {
+            } else if (type == "UPDATE_ROOM_STATE") {
+                if (j.contains("state") && j["state"].is_object()) {
+                    std::lock_guard<std::mutex> lock(roomMutex);
+                    roomState = j["state"];
+                }
+            } else if (type == "HEARTBEAT" || type == "STATS") {
                 // sin acción
             } else {
                 std::lock_guard<std::mutex> lock(eventMutex);
@@ -239,7 +247,8 @@ struct AnchorClient::Impl {
         hs["type"] = "HANDSHAKE";
         hs["roomId"] = room;
         hs["clientId"] = selfId.load();
-        hs["roomState"] = json::object();
+        hs["roomState"] = { { "pvpMode", 0 }, { "showLocationsFor", 2 }, { "allowTeleportingTo", 2 },
+                            { "syncItemsFlags", true } };
         hs["clientState"] = state;
         return hs;
     }
@@ -306,6 +315,10 @@ struct AnchorClient::Impl {
             {
                 std::lock_guard<std::mutex> lock(remoteMutex);
                 remotes.clear();
+            }
+            {
+                std::lock_guard<std::mutex> lock(roomMutex);
+                roomState = json::object();
             }
 
             if (wantConnected) {
@@ -464,4 +477,109 @@ bool AnchorClient::GetRemote(uint64_t id, AnchorRemote* out) const {
     }
     *out = it->second;
     return true;
+}
+
+nlohmann::json AnchorClient::GetRoomState() const {
+    std::lock_guard<std::mutex> lock(mImpl->roomMutex);
+    return mImpl->roomState;
+}
+
+void AnchorClient::SetRoomState(const nlohmann::json& state) {
+    std::lock_guard<std::mutex> lock(mImpl->roomMutex);
+    mImpl->roomState = state;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Ajustes de sala y acciones de la interfaz
+// ---------------------------------------------------------------------------------------------
+
+std::string Anchor_GetTeamId() {
+    std::string t = CVarGetString("gAnchor.Team", "default");
+    return t.empty() ? std::string("default") : t;
+}
+
+uint64_t Anchor_GetRoomOwnerId() {
+    json st = AnchorClient::Get().GetRoomState();
+    if (st.contains("ownerClientId") && st["ownerClientId"].is_number()) {
+        return st["ownerClientId"].get<uint64_t>();
+    }
+    return 0;
+}
+
+bool Anchor_IsRoomAdmin() {
+    AnchorClient& c = AnchorClient::Get();
+    if (c.GetStatus() != AnchorStatus::Connected || c.SelfId() == 0) {
+        return false;
+    }
+    return Anchor_GetRoomOwnerId() == c.SelfId();
+}
+
+static int ClampInt(int v, int lo, int hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+AnchorRoomSettings Anchor_GetRoomSettings() {
+    AnchorRoomSettings rs;
+    json st = AnchorClient::Get().GetRoomState();
+    if (st.contains("pvpMode") && st["pvpMode"].is_number()) {
+        rs.pvpMode = ClampInt(st["pvpMode"].get<int>(), 0, 2);
+    }
+    if (st.contains("showLocationsFor") && st["showLocationsFor"].is_number()) {
+        rs.showLocationsFor = ClampInt(st["showLocationsFor"].get<int>(), 0, 2);
+    }
+    if (st.contains("allowTeleportingTo") && st["allowTeleportingTo"].is_number()) {
+        rs.allowTeleportingTo = ClampInt(st["allowTeleportingTo"].get<int>(), 0, 2);
+    }
+    if (st.contains("syncItemsFlags") && st["syncItemsFlags"].is_boolean()) {
+        rs.syncItemsFlags = st["syncItemsFlags"].get<bool>();
+    }
+    return rs;
+}
+
+void Anchor_SetRoomSettings(const AnchorRoomSettings& rs) {
+    if (!Anchor_IsRoomAdmin()) {
+        return;
+    }
+    AnchorClient& c = AnchorClient::Get();
+    json st = c.GetRoomState(); // conserva ownerClientId
+    st["pvpMode"] = rs.pvpMode;
+    st["showLocationsFor"] = rs.showLocationsFor;
+    st["allowTeleportingTo"] = rs.allowTeleportingTo;
+    st["syncItemsFlags"] = rs.syncItemsFlags;
+    c.SetRoomState(st);
+    json p;
+    p["type"] = "UPDATE_ROOM_STATE";
+    p["state"] = st;
+    c.Send(std::move(p));
+}
+
+void Anchor_RequestTeamState() {
+    json p;
+    p["type"] = "REQUEST_TEAM_STATE";
+    p["targetTeamId"] = Anchor_GetTeamId();
+    AnchorClient::Get().Send(std::move(p));
+}
+
+void Anchor_ClearAllTeamState() {
+    if (!Anchor_IsRoomAdmin()) {
+        return;
+    }
+    AnchorClient& c = AnchorClient::Get();
+    std::vector<std::string> teams = { Anchor_GetTeamId() };
+    for (const AnchorRemote& r : c.Remotes()) {
+        bool found = false;
+        for (const std::string& t : teams) {
+            found = found || (t == r.teamId);
+        }
+        if (!found && !r.teamId.empty()) {
+            teams.push_back(r.teamId);
+        }
+    }
+    for (const std::string& t : teams) {
+        json p;
+        p["type"] = "UPDATE_TEAM_STATE";
+        p["targetTeamId"] = t;
+        p["state"] = json::object();
+        c.Send(std::move(p));
+    }
 }
