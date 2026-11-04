@@ -228,6 +228,10 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU|MSVC")
 endif()
 
 add_subdirectory(ZAPDTR/ZAPD ${CMAKE_BINARY_DIR}/ZAPD)
+if (ANDROID AND TARGET ZAPDLib)
+    # backtrace() no existe en Android < API 33: se inyecta una version vacia solo para ZAPDLib
+    target_compile_options(ZAPDLib PRIVATE -include "${CMAKE_SOURCE_DIR}/CMake/android_compat/execinfo_stub.h")
+endif()
 add_subdirectory(OTRExporter)
 add_subdirectory(mm)
 
