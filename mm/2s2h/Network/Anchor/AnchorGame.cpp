@@ -374,7 +374,7 @@ json BuildTeamState() {
     }
     json inf = json::array();
     for (int i = 0; i < 8; i++) {
-        inf.push_back((int)gSaveContext.save.saveInfo.eventInf[i]);
+        inf.push_back((int)gSaveContext.eventInf[i]);
     }
     st["items"] = std::move(items);
     st["weekEventReg"] = std::move(week);
@@ -403,7 +403,7 @@ void ApplyTeamState(PlayState* play, const json& st) {
     }
     if (st.contains("eventInf") && st["eventInf"].is_array() && st["eventInf"].size() == 8) {
         for (int i = 0; i < 8; i++) {
-            gSaveContext.save.saveInfo.eventInf[i] |= (u8)st["eventInf"][i].get<int>();
+            gSaveContext.eventInf[i] |= (u8)st["eventInf"][i].get<int>();
         }
     }
     sApplyingRemote = false;

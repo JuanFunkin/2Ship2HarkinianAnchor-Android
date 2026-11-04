@@ -349,7 +349,7 @@ void RegisterAnchorMenu() {
     static bool windowAdded = false;
     if (!windowAdded) {
         windowAdded = true;
-        auto gui = Ship::Context::GetInstance()->GetWindow()->GetGui();
+        auto gui = Ship::Context::GetRawInstance()->GetWindow()->GetGui();
         gui->AddGuiWindow(std::make_shared<AnchorRoomWindow>("gWindows.AnchorRoom", "Anchor Room", ImVec2(460, 320)));
     }
 }
